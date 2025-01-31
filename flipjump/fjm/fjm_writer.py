@@ -81,6 +81,10 @@ class Writer:
         writes the .fjm headers, segments and (might be compressed) data into the output_file.
         @note call this after finished adding data and segments and editing the Writer.
         """
+        if self.flags & 1:
+            self.write_to_file_text()
+            return
+
         write_tag = '<' + {8: 'B', 16: 'H', 32: 'L', 64: 'Q'}[self.word_size]
 
         with open(self.output_file, 'wb') as f:
@@ -96,6 +100,24 @@ class Writer:
                 fjm_data = self._compress_data(fjm_data)
 
             f.write(fjm_data)
+
+    def write_to_file_text(self) -> None:
+        n = 4
+        in_hex: bool = self.flags & 2
+        pad = 2 + self.word_size // 4
+        with open(self.output_file, 'w') as f:
+            for (segment_start, _, data_start, data_length) in self.segments:
+                for addr in range(0, data_length, n):
+                    text: List[str] = []
+                    for i in range(0, min(n, data_length - addr), 2):
+                        a = self.data[addr + data_start + i]
+                        b = self.data[addr + data_start + i + 1]
+                        if (in_hex):
+                            text.append(f'{a:#0{pad}x}:{b:#0{pad}x}')
+                        else:
+                            text.append(f'{a:#{pad}}:{b:#{pad}}')
+                    f.write(f'{(segment_start + addr):#0{pad}x}: {", ".join(text)}\n')
+                f.write("\n")
 
     def get_segment_addresses_repr(self, word_start_address: int, word_length: int) -> str:
         """
